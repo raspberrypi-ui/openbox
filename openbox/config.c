@@ -35,6 +35,7 @@ gboolean config_focus_raise;
 gboolean config_focus_last;
 gboolean config_focus_under_mouse;
 gboolean config_unfocus_leave;
+gboolean config_focus_desktop;
 
 ObPlacePolicy  config_place_policy;
 gboolean       config_place_center;
@@ -48,8 +49,10 @@ StrutPartial config_margins;
 gchar   *config_theme;
 gboolean config_theme_keepborder;
 guint    config_theme_window_list_icon_size;
-gboolean config_theme_roundcorners;
 gboolean config_theme_invhandles;
+guint    config_theme_handlewidth;
+gchar   *config_theme_title_color;
+gchar   *config_theme_text_color;
 
 gchar   *config_title_layout;
 
@@ -637,6 +640,8 @@ static void parse_focus(xmlNodePtr node, gpointer d)
         config_focus_under_mouse = obt_xml_node_bool(n);
     if ((n = obt_xml_find_node(node, "unfocusOnLeave")))
         config_unfocus_leave = obt_xml_node_bool(n);
+    if ((n = obt_xml_find_node(node, "focusDesktop")))
+        config_focus_desktop = obt_xml_node_bool(n);
 }
 
 static void parse_placement(xmlNodePtr node, gpointer d)
@@ -721,10 +726,21 @@ static void parse_theme(xmlNodePtr node, gpointer d)
         else if (config_theme_window_list_icon_size > 96)
             config_theme_window_list_icon_size = 96;
     }
-    if ((n = obt_xml_find_node(node, "roundCorners")))
-        config_theme_roundcorners = obt_xml_node_bool(n);
     if ((n = obt_xml_find_node(node, "invisibleHandles")))
         config_theme_invhandles = obt_xml_node_bool(n);
+    if ((n = obt_xml_find_node(node, "invHandleWidth")))
+        config_theme_handlewidth = obt_xml_node_int(n);
+
+    if ((n = obt_xml_find_node(node, "titleColor")))
+    {
+        g_free(config_theme_title_color);
+        config_theme_title_color = obt_xml_node_string(n);
+    }
+    if ((n = obt_xml_find_node(node, "textColor")))
+    {
+        g_free(config_theme_text_color);
+        config_theme_text_color = obt_xml_node_string(n);
+    }
 
     for (n = obt_xml_find_node(node, "font");
          n;
@@ -1082,6 +1098,7 @@ void config_startup(ObtXmlInst *i)
     config_focus_last = TRUE;
     config_focus_under_mouse = FALSE;
     config_unfocus_leave = FALSE;
+    config_focus_desktop = FALSE;
 
     obt_xml_register(i, "focus", parse_focus, NULL);
 
@@ -1099,13 +1116,15 @@ void config_startup(ObtXmlInst *i)
     obt_xml_register(i, "margins", parse_margins, NULL);
 
     config_theme = NULL;
+    config_theme_title_color = NULL;
+    config_theme_text_color = NULL;
 
     config_animate_iconify = TRUE;
     config_title_layout = g_strdup("NLIMC");
     config_theme_keepborder = TRUE;
     config_theme_window_list_icon_size = 36;
-    config_theme_roundcorners = FALSE;
     config_theme_invhandles = FALSE;
+    config_theme_handlewidth = 10;
 
     config_font_activewindow = NULL;
     config_font_inactivewindow = NULL;

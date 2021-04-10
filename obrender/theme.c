@@ -31,6 +31,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Messy use of globals for colour overrides, but the cascading use of colours loaded from
+ * the theme as defaults for values loaded later leaves me little choice. Bleagh. */
+RrColor *title_color, *text_color;
+
 struct fallbacks {
     RrAppearance *focused_disabled;
     RrAppearance *unfocused_disabled;
@@ -125,6 +129,20 @@ static RrFont *get_font(RrFont *target, RrFont **default_font,
         !read_appearance(db, inst, x_res2, x_var, x_parrel)) {\
         RrAppearanceFree(x_var); \
         x_var = RrAppearanceCopy(x_defval); }
+
+#define OVERRIDE_COLOR(target,override) \
+    if (theme->name && !strncmp (theme->name, "PiX", 3) && override) { \
+        RrColorFree (target); \
+        target = RrColorCopy (override); }
+
+
+void RrThemeColOverride (RrColor *title_col, RrColor *text_col)
+{
+    if (text_col) text_color = RrColorCopy (text_col);
+    else text_color = NULL;
+    if (title_col) title_color = RrColorCopy (title_col);
+    else title_color = NULL;
+}
 
 RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
                     gboolean allow_fallback,
@@ -271,6 +289,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_INT("menu.separator.padding.height", theme->menu_sep_paddingy, 0, 100, 3);
     READ_INT("window.client.padding.width", theme->cbwidthx, 0, 100, theme->paddingx);
     READ_INT("window.client.padding.height", theme->cbwidthy, 0, 100, theme->cbwidthx);
+    READ_INT("border.radius", theme->corner_radius, 0, 2, 0);
 
     /* load colors */
     READ_COLOR_("window.active.border.color",
@@ -315,6 +334,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.label.text.color",
                theme->title_focused_color,
                RrColorNew(inst, 0x0, 0x0, 0x0));
+    OVERRIDE_COLOR(theme->title_focused_color,text_color);
 
     READ_COLOR("window.inactive.label.text.color",
                theme->title_unfocused_color,
@@ -333,6 +353,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.button.unpressed.image.color",
                theme->titlebut_focused_unpressed_color,
                RrColorNew(inst, 0, 0, 0));
+    OVERRIDE_COLOR(theme->titlebut_focused_unpressed_color,text_color);
 
     READ_COLOR("window.inactive.button.unpressed.image.color",
                theme->titlebut_unfocused_unpressed_color,
@@ -341,6 +362,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.button.pressed.image.color",
                theme->titlebut_focused_pressed_color,
                RrColorCopy(theme->titlebut_focused_unpressed_color));
+    OVERRIDE_COLOR(theme->titlebut_focused_pressed_color,text_color);
 
     READ_COLOR("window.inactive.button.pressed.image.color",
                theme->titlebut_unfocused_pressed_color,
@@ -357,6 +379,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.button.hover.image.color",
                theme->titlebut_focused_hover_color,
                RrColorCopy(theme->titlebut_focused_unpressed_color));
+    OVERRIDE_COLOR(theme->titlebut_focused_hover_color,text_color);
 
     READ_COLOR("window.inactive.button.hover.image.color",
                theme->titlebut_unfocused_hover_color,
@@ -366,6 +389,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
                 "window.active.button.toggled.image.color",
                 theme->titlebut_focused_unpressed_toggled_color,
                 RrColorCopy(theme->titlebut_focused_pressed_color));
+    OVERRIDE_COLOR(theme->titlebut_focused_unpressed_toggled_color,text_color);
 
     READ_COLOR_("window.inactive.button.toggled.unpressed.image.color",
                 "window.inactive.button.toggled.image.color",
@@ -375,6 +399,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.button.toggled.hover.image.color",
                theme->titlebut_focused_hover_toggled_color,
                RrColorCopy(theme->titlebut_focused_unpressed_toggled_color));
+    OVERRIDE_COLOR(theme->titlebut_focused_hover_toggled_color,text_color);
 
     READ_COLOR("window.inactive.button.toggled.hover.image.color",
                theme->titlebut_unfocused_hover_toggled_color,
@@ -383,6 +408,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
     READ_COLOR("window.active.button.toggled.pressed.image.color",
                theme->titlebut_focused_pressed_toggled_color,
                RrColorCopy(theme->titlebut_focused_pressed_color));
+    OVERRIDE_COLOR(theme->titlebut_focused_pressed_toggled_color,text_color);
 
     READ_COLOR("window.inactive.button.toggled.pressed.image.color",
                theme->titlebut_unfocused_pressed_toggled_color,
@@ -546,6 +572,7 @@ RrTheme* RrThemeNew(const RrInstance *inst, const gchar *name,
 
     /* read the decoration textures */
     READ_APPEARANCE("window.active.title.bg", theme->a_focused_title, FALSE);
+    OVERRIDE_COLOR(theme->a_focused_title->surface.primary,title_color);
     READ_APPEARANCE("window.inactive.title.bg", theme->a_unfocused_title, FALSE);
     READ_APPEARANCE("window.active.label.bg", theme->a_focused_label, TRUE);
     READ_APPEARANCE("window.inactive.label.bg", theme->a_unfocused_label, TRUE);
@@ -1244,6 +1271,12 @@ static gboolean read_mask(const RrInstance *inst, const gchar *path,
     guchar *b;
 
     s = g_build_filename(path, maskname, NULL);
+    // revert filenames for non-existent large icons to default
+    if (!g_file_test (s, G_FILE_TEST_EXISTS))
+    {
+        int l = strlen (s);
+        if (s[l - 6] == '_' && s[l - 5] == 'l') sprintf (s + l - 6, ".xbm");
+    }
     if (XReadBitmapFileData(s, &w, &h, &b, &hx, &hy) == BitmapSuccess) {
         ret = TRUE;
         *value = RrPixmapMaskNew(inst, w, h, (gchar*)b);
@@ -1471,14 +1504,20 @@ static void read_button_styles(XrmDatabase db, const RrInstance *inst,
 {
     gchar name[128], name2[128];
     gboolean userdef = TRUE;
+    gchar ext[3];
 
-    g_snprintf(name, 128, "%s.xbm", btnname);
+    if (theme->name && !strncmp (theme->name, "PiX", 3) && RrFontHeight (theme->win_font_focused, 0) >= 25)
+        sprintf (ext, "_l");
+    else
+        sprintf (ext, "");
+
+    g_snprintf(name, 128, "%s%s.xbm", btnname, ext);
     if (!read_mask(inst, path, name, &btn->unpressed_mask) && normal_mask)
     {
         btn->unpressed_mask = RrPixmapMaskNew(inst, 6, 6, (gchar*)normal_mask);
         userdef = FALSE;
     }
-    g_snprintf(name, 128, "%s_toggled.xbm", btnname);
+    g_snprintf(name, 128, "%s_toggled%s.xbm", btnname, ext);
     if (toggled_mask && !read_mask(inst, path, name, &btn->unpressed_toggled_mask))
     {
         if (userdef)
@@ -1487,16 +1526,16 @@ static void read_button_styles(XrmDatabase db, const RrInstance *inst,
             btn->unpressed_toggled_mask = RrPixmapMaskNew(inst, 6, 6, (gchar*)toggled_mask);
     }
 #define READ_BUTTON_MASK_COPY(type, fallback) \
-    g_snprintf(name, 128, "%s_" #type ".xbm", btnname); \
+    g_snprintf(name, 128, "%s_" #type "%s.xbm", btnname, ext); \
     READ_MASK_COPY(name, btn->type##_mask, fallback);
 
     READ_BUTTON_MASK_COPY(pressed, btn->unpressed_mask);
     READ_BUTTON_MASK_COPY(disabled, btn->unpressed_mask);
     READ_BUTTON_MASK_COPY(hover, btn->unpressed_mask);
     if (toggled_mask) {
-        g_snprintf(name, 128, "%s_toggled_pressed.xbm", btnname);
+        g_snprintf(name, 128, "%s_pressed_toggled%s.xbm", btnname, ext);
         READ_MASK_COPY(name, btn->pressed_toggled_mask, btn->unpressed_toggled_mask);
-        g_snprintf(name, 128, "%s_toggled_hover.xbm", btnname);
+        g_snprintf(name, 128, "%s_hover_toggled%s.xbm", btnname, ext);
         READ_MASK_COPY(name, btn->hover_toggled_mask, btn->unpressed_toggled_mask);
     }
 
