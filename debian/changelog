@@ -1,3 +1,11 @@
+openbox (3.6.1-9+deb11u1) unstable; urgency=medium
+
+  [ dann frazier ]
+  * When running with > 2 screens, avoid calling XQueryPointer() in an
+    infinite loop. (Closes: #983882)
+
+ -- Mateusz Łukasik <mati75@linuxmint.pl>  Thu, 18 Mar 2021 22:11:13 +0100
+
 openbox (3.6.1-9) unstable; urgency=medium
 
   * Switch to python3. (Closes: #887122 #886716) (LP: #1816473)
